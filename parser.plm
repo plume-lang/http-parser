@@ -1,0 +1,62 @@
+require "mod:thomasvergne/plume-combinator"
+require "mod:thomasvergne/plume-combinator/library/char"
+
+type Request {
+  Request(
+    str, // method
+    str, // path
+    Map<str> // headers
+  )
+}
+
+fn cat_maybes<A extends equality>(ls: list<Option<A>>): list<A> =>
+  ls.foldl(fn(acc, x) => switch x {
+    case Some(x) => [x] + acc
+    case None => acc
+  }, [])
+
+extend show<Request> {
+  fn show_prec(m, i) => switch m {
+    case Request(method, path, headers) =>
+      "Request($method, $path, " + headers.show() + ")"
+  }
+}
+
+parse_first_line: Parser<Option<(str, str)>> = 
+  none_of([' ', '\n', '\r'])
+    .many1()
+    .map(implode)
+    .sepBy1(space)
+  >>= fn (ls) => switch ls {
+    case [method, path, ?] => pure(Some((method, path)))
+    case ? => pure(None)
+  }
+
+parse_header: Parser<Option<(str, str)>> =
+  none_of(['\n', '\r', ':'])
+    .many1()
+    .map(implode)
+    .sepBy1(character(':').lex())
+  >>= fn (ls) => switch ls {
+    case [key, value] => pure(Some((key, value)))
+    case ? => pure(None)
+  }
+
+parse_http: Parser<Option<Request>> =
+  parse_first_line
+    .bind(fn (first_line) => switch first_line {
+      case Some((method, path)) =>
+        newline >>
+        parse_header
+          .sepBy1(newline)
+          .bind(fn (headers) {
+            return pure(Some(Request(method, path, headers.cat_maybes().from_list())))
+          })
+      case None => pure(None)
+    })
+
+fn parse_request(s: str): Option<Request> {
+  s_ = s.explode()
+
+  return parse_http.parse(s_).simplify_option()
+}
