@@ -1,9 +1,10 @@
 require "parser"
+require "std:io/file"
 
-req = "GET / HTTP/1.1\nHost: localhost:8000\nSec-Fetch-Dest: document\nUser-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15\nUpgrade-Insecure-Requests: 1|\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\nSec-Fetch-Site: none\nSec-Fetch-Mode: navigate\nAccept-Language: fr-FR,fr;q=0.9\nPriority: u=0, i\nAccept-Encoding: gzip, deflate\nConnection: keep-alive"
+req = read_file("response.txt").or_else("")
 
 request = req.parse_request()
 switch request {
-  case Some(req) => println(req)
-  case None => println("Error")
+  case Ok(req) => println(req)
+  case Error(err) => println(err)
 }
