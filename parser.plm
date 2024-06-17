@@ -27,6 +27,7 @@ parse_first_line: Parser<Option<(str, str)>> =
     .many1()
     .map(implode)
     .sepBy1(space)
+    .lex()
   >>= fn (ls) => switch ls {
     case [method, path, ?] => pure(Some((method, path)))
     case ? => pure(None)
@@ -34,11 +35,12 @@ parse_first_line: Parser<Option<(str, str)>> =
 
 parse_header: Parser<Option<(str, str)>> =
   none_of(['\n', '\r', ':'])
-    .many1()
+    .many1().lex()
     .map(implode)
-    .sepBy1(character(':').lex())
+    .sepBy1(character(':'))
+    .lex()
   >>= fn (ls) => switch ls {
-    case [key, value] => pure(Some((key, value)))
+    case [key, ..vs] => pure(Some((key, vs.join_str(":"))))
     case ? => pure(None)
   }
 
@@ -46,17 +48,21 @@ parse_http: Parser<Option<Request>> =
   parse_first_line
     .bind(fn (first_line) => switch first_line {
       case Some((method, path)) =>
-        newline >>
+        newline.many() >>
         parse_header
-          .sepBy1(newline)
+          .sepBy1(newline.many1())
+          .lex()
           .bind(fn (headers) {
             return pure(Some(Request(method, path, headers.cat_maybes().from_list())))
-          })
+          }) << newline.many()
       case None => pure(None)
     })
 
-fn parse_request(s: str): Option<Request> {
+fn parse_request(s: str): Result<Request, str> {
   s_ = s.explode()
 
-  return parse_http.parse(s_).simplify_option()
+  return parse_http.bind(fn(p) => switch p {
+    case Some(r) => pure(r)
+    case None => parse_error("parse err")
+  }).run_parser(s_).fst()
 }
