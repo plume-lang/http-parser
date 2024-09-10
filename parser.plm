@@ -5,7 +5,7 @@ type Request {
   Request(
     str, // method
     str, // path
-    Map<str> // headers
+    Map<str, str> // headers
   )
 }
 
@@ -26,7 +26,7 @@ parse_first_line: Parser<Option<(str, str)>> =
   none_of([' ', '\n', '\r'])
     .many1()
     .map(implode)
-    .sepBy1(space)
+    .sep_by_1(space)
     .lex()
   >>= fn (ls) => switch ls {
     case [method, path, ?] => pure(Some((method, path)))
@@ -37,7 +37,7 @@ parse_header: Parser<Option<(str, str)>> =
   none_of(['\n', '\r', ':'])
     .many1().lex()
     .map(implode)
-    .sepBy1(character(':'))
+    .sep_by_1(character(':'))
     .lex()
   >>= fn (ls) => switch ls {
     case [key, ..vs] => pure(Some((key, vs.join_str(":"))))
@@ -50,10 +50,10 @@ parse_http: Parser<Option<Request>> =
       case Some((method, path)) =>
         newline.many() >>
         parse_header
-          .sepBy1(newline.many1())
+          .sep_by_1(newline.many1())
           .lex()
           .bind(fn (headers) {
-            return pure(Some(Request(method, path, headers.cat_maybes().from_list())))
+            return pure(Some(Request(method, path, headers.cat_maybes())))
           }) << newline.many()
       case None => pure(None)
     })
